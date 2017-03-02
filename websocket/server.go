@@ -11,6 +11,7 @@ package websocket
 import (
 	"context"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,8 +62,9 @@ func (srv *Server) newConnHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Add client to server clients and start consuming messages
+	topics := strings.Split(r.Header.Get("Topics"), ",")
 	// TODO: topics from request header
-	client := NewClient(srv, conn)
+	client := NewClient(srv, conn, topics...)
 	client.Go()
 	// Add the client to the server
 	srv.Add(client)
