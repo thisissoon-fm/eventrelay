@@ -28,6 +28,7 @@ type (
 	// A subscriber returns a read closer for receiving messages
 	// from a pub/sub subscription
 	Subscriber interface {
+		Topics() []string
 		Subscribe(topics ...string) (ReadCloser, error)
 	}
 	// A pub/sub system should allow us to subscribe and write

@@ -47,6 +47,11 @@ func (client *Client) delSubscription(id string) {
 	client.subscriptionsLock.Unlock()
 }
 
+// Returns the list of topics supports
+func (client *Client) Topics() []string {
+	return client.Config.Topics()
+}
+
 // Subscribe creates a new subscription for the given
 // topics we want to receive messages from, this will return
 // the new subscription which implements the standard pubsub.ReadCloser

@@ -225,8 +225,8 @@ func (client *Client) readPump() error {
 func (client *Client) closeConn() error {
 	client.closeLock.Lock()
 	if !client.closed {
-		logger.Debug("close client connection")
-		defer logger.Info("closed client connection")
+		logger.Debug("close websocket client connection")
+		defer logger.Info("closed websocket client connection")
 		// Close closeC - breaks the write pump / read pumps
 		close(client.closeC)
 		// Remove the client from the server

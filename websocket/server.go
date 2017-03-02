@@ -61,17 +61,18 @@ func (srv *Server) newConnHandler(w http.ResponseWriter, r *http.Request) {
 		logger.WithError(err).Error("error upgrading HTTP connection")
 		return
 	}
-	// Add client to server clients and start consuming messages
-	topics := strings.Split(r.Header.Get("Topics"), ",")
-	// TODO: topics from request header
-	client := NewClient(srv, conn, topics...)
-	client.Go()
 	// Add the client to the server
+	topics := strings.Split(r.Header.Get("Topics"), ",")
+	client := NewClient(srv, conn, topics...)
 	srv.Add(client)
+	// Start client consuming messages
+	client.Go()
 }
 
 // Add client to server clients store
 func (s *Server) Add(client *Client) {
+	l := logger.WithField("remote", client.RemoteAddr().String())
+	l.Debug("add websocket client to server")
 	s.clientsLock.Lock()
 	s.clients[client.RemoteAddr().String()] = client
 	s.clientsLock.Unlock()
@@ -79,6 +80,8 @@ func (s *Server) Add(client *Client) {
 
 // Delete a client from the server
 func (s *Server) Del(client *Client) {
+	l := logger.WithField("remote", client.RemoteAddr().String())
+	l.Debug("delete websocket client from server")
 	s.clientsLock.Lock()
 	delete(s.clients, client.RemoteAddr().String())
 	s.clientsLock.Unlock()

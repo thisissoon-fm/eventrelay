@@ -10,12 +10,6 @@ import (
 	"eventrelay/pubsub"
 )
 
-// Running relays
-var (
-	relaysLock = new(sync.Mutex)
-	relays     = make([]*Relay, 0)
-)
-
 // Error vars
 var (
 	ErrTopicNotSupported  = errors.New("topic not supported")
@@ -84,7 +78,7 @@ type Client interface {
 }
 
 // Add a new pubsub to the relay pubsub map
-func AddPubSub(name string, sw pubsub.SubscribeWriter, topics ...string) {
+func AddPubSub(name string, sw pubsub.SubscribeWriter) {
 	defer logger.WithField("name", name).Debug("added pubsub to relays")
 	// Store pubsub by name
 	pubsubsLock.Lock()
@@ -92,7 +86,7 @@ func AddPubSub(name string, sw pubsub.SubscribeWriter, topics ...string) {
 	pubsubsLock.Unlock()
 	// Topics to pubsub map
 	topicPubsubLock.Lock()
-	for _, topic := range topics {
+	for _, topic := range sw.Topics() {
 		topicPubsub.Add(topic, name, sw)
 	}
 	topicPubsubLock.Unlock()
@@ -112,31 +106,35 @@ func DelPubSub(name string) {
 	// TODO: stop relay running subscriptions for this pubsub
 }
 
-// Close all relays
-func Close() error {
-	return nil
-}
-
 // Each client when they connect spawns a new relay which manages the
 // topic subscriptions and bidirectional reading and writting
 type Relay struct {
 	client        Client
 	topics        []string
 	subscriptions map[string]pubsub.ReadCloser
+	wg            sync.WaitGroup
+	closeC        chan bool
 }
 
-// Reads messages from the relay client and writes them to the appropriate
-// pubsub service
-func (relay *Relay) readPump() error {
+// Reads messages from the relay client and writes them to the
+// appropriate pubsub service
+func (relay *Relay) clientReadPump() error {
 	logger.Debug("start relay client read loop")
 	defer logger.Debug("exit relay client read loop")
 	for {
-		// TODO: close handling on each loop iteration
+		select {
+		case <-relay.closeC:
+			return nil
+		default:
+			break
+		}
+		// Read messages from client
 		b, err := relay.client.Read()
 		if err != nil {
-			// TODO: error handling
-			// io.EOF = client closed
-			return nil
+			if err == io.EOF { // client has gone away normally
+				return nil
+			}
+			return err
 		}
 		// Decode msg bytes - each event has a Topic, this is all
 		// we need to route the message to appropriate pubsub service
@@ -170,6 +168,41 @@ func (relay *Relay) readPump() error {
 	}
 }
 
+// Reads messages from the pubsub subscription and writes them to the relay client
+func (relay *Relay) subscriptionReadPump(sub pubsub.Reader) error {
+	logger.Debug("start relay subscription coroutine")
+	defer logger.Debug("exit relay subscription coroutine")
+	for {
+		select {
+		case <-relay.closeC:
+			return nil
+		default:
+			break
+		}
+		// Read messages from subscription
+		msg, err := sub.Read()
+		switch err {
+		case nil: // no error
+			// Write to relay client
+			logger.WithFields(logger.F{
+				"topic;":  msg.Topic,
+				"payload": string(msg.Payload),
+			}).Debug("write pubsub message to relay client")
+			_, err := relay.client.Write(msg.Payload)
+			if err != nil {
+				if err == io.ErrClosedPipe {
+					return nil
+				}
+				return err
+			}
+		case io.EOF: // closed
+			return nil
+		default: // unexpected error
+			return err
+		}
+	}
+}
+
 // Start a subscription with the pubsub for the given topics
 func (relay *Relay) startSubscription(name string, topics ...string) error {
 	pubsub, ok := pubsubs[name]
@@ -181,32 +214,12 @@ func (relay *Relay) startSubscription(name string, topics ...string) error {
 		return err
 	}
 	relay.subscriptions[name] = subscription
-	// TODO: waitgroup
 	go func() {
-		logger.Debug("start relay subscription coroutine")
-		defer logger.Debug("exit relay subscription coroutine")
-		for {
-			msg, err := subscription.Read()
-			switch err {
-			case nil: // no error
-				// Write to relay client
-				logger.WithFields(logger.F{
-					"topic;":  msg.Topic,
-					"payload": string(msg.Payload),
-				}).Debug("write pubsub message to relay client")
-				i, err := relay.client.Write(msg.Payload)
-				if err != nil {
-					logger.WithError(err).Error("error writting to relay client")
-					// TODO: do we close?
-					continue
-				}
-				logger.WithField("len", i).Debug("written pubsub message to relay client")
-			case io.EOF: // closed
-				// TODO: log closed subscription
-			default: // unexpected error
-				// TODO: log error
-			}
+		relay.wg.Add(1)
+		if err := relay.subscriptionReadPump(subscription); err != nil {
+			logger.WithError(err).Error("unexpected relay pubsub read error")
 		}
+		relay.wg.Done()
 	}()
 	return nil
 }
@@ -239,16 +252,26 @@ func (relay *Relay) Start() error {
 	}
 	// Start the read pump which reads from the relay client and pumps
 	// the events to a pubsub service
-	// TODO: waitgroup
 	go func() {
-		relay.readPump()
+		relay.wg.Add(1)
+		if err := relay.clientReadPump(); err != nil {
+			logger.WithError(err).Error("unexpected relay client read error")
+		}
+		relay.wg.Done()
 	}()
 	return nil
 }
 
 // Close the relay
 func (relay *Relay) Close() error {
-	// TODO: fill this out ;)
+	close(relay.closeC)
+	// Close relay subscriptions
+	for _, subscription := range relay.subscriptions {
+		if err := subscription.Close(); err != nil {
+			logger.WithError(err).Error("error closing relay subscription")
+		}
+	}
+	relay.wg.Wait()
 	return nil
 }
 
@@ -258,5 +281,6 @@ func New(client Client, topics ...string) *Relay {
 		client:        client,
 		topics:        topics,
 		subscriptions: make(map[string]pubsub.ReadCloser),
+		closeC:        make(chan bool),
 	}
 }
