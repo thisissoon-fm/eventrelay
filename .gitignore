@@ -22,3 +22,9 @@ _testmain.go
 *.exe
 *.test
 *.prof
+
+# go build binary
+eventrelay
+
+# developer
+.env
