@@ -1,14 +1,9 @@
 package cli
 
 import (
-	"os"
-	"os/signal"
-
 	"eventrelay/config"
 	"eventrelay/logger"
-	"eventrelay/pubsub/redis"
-	"eventrelay/relay"
-	"eventrelay/websocket"
+	"eventrelay/run"
 
 	"github.com/spf13/cobra"
 )
@@ -32,18 +27,9 @@ var mainCmd = &cobra.Command{
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		logger.Info("start")
-		// Redis pub/sub
-		pubsub := redis.New(redis.NewConfig())
-		defer pubsub.Close()
-		relay.AddPubSub("redis", pubsub)
-		// Start websocket server
-		srv := websocket.NewServer(websocket.NewServerConfig())
-		go srv.ListenAndServe()
-		defer srv.Close()
-		// Wait for exit sygna;s
-		stopChan := make(chan os.Signal)
-		signal.Notify(stopChan, os.Interrupt)
-		<-stopChan // wait for SIGINT
+		if err := run.Run(); err != nil {
+			logger.WithError(err).Error("error running application")
+		}
 		logger.Info("exit")
 	},
 }
