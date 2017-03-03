@@ -129,10 +129,10 @@
 			"revisionTime": "2017-02-21T15:10:31Z"
 		},
 		{
-			"checksumSHA1": "AlQX4i6VrV8vIfnjpwabRzIVNLU=",
+			"checksumSHA1": "hgI9+1CnDX7GUG7WuHqjYH2nyA0=",
 			"path": "github.com/spf13/cobra",
-			"revision": "92ea23a837e66f46ac9e7d04fa826602b7b0a42d",
-			"revisionTime": "2017-02-23T13:12:51Z"
+			"revision": "fcd0c5a1df88f5d6784cb4feead962c3f3d0b66c",
+			"revisionTime": "2017-02-28T19:17:48Z"
 		},
 		{
 			"checksumSHA1": "9pkkhgKp3mwSreiML3plQlQYdLQ=",
@@ -237,5 +237,5 @@
 			"revisionTime": "2017-02-08T14:18:51Z"
 		}
 	],
-	"rootPath": "playerrelay"
+	"rootPath": "eventrelay"
 }

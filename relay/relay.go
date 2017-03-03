@@ -92,20 +92,6 @@ func AddPubSub(name string, sw pubsub.SubscribeWriter) {
 	topicPubsubLock.Unlock()
 }
 
-// Delete a pubsub from the relay pubsub map
-func DelPubSub(name string) {
-	defer logger.WithField("name", name).Debug("deleted from realy pubsub")
-	pubsubsLock.Lock()
-	_, ok := pubsubs[name]
-	if !ok {
-		return
-	}
-	delete(pubsubs, name)
-	pubsubsLock.Unlock()
-	// TODO: delete from topics map
-	// TODO: stop relay running subscriptions for this pubsub
-}
-
 // Each client when they connect spawns a new relay which manages the
 // topic subscriptions and bidirectional reading and writting
 type Relay struct {
