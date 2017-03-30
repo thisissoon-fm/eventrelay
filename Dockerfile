@@ -12,7 +12,7 @@ ARG BINDEST=/usr/local/bin/eventrelay
 RUN adduser -D -H soon_
 
 # Expose Port
-EXPOSE 35000
+EXPOSE 8000
 
 # Copy Binary
 COPY ${BINLOC} ${BINDEST}
