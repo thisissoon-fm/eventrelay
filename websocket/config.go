@@ -9,7 +9,7 @@ const (
 )
 
 func init() {
-	viper.SetDefault(viper_bind_key, "localhost:8000")
+	viper.SetDefault(viper_bind_key, ":8000")
 	viper.SetDefault(viper_username_key, "username")
 	viper.SetDefault(viper_password_key, "password")
 	viper.BindEnv(
