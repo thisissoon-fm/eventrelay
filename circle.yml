@@ -1,0 +1,40 @@
+machine:
+  services:
+    - docker
+  environment:
+    GOPATH: ${HOME}/go
+    PROJECT_PATH: ${GOPATH}/src/${CIRCLE_PROJECT_REPONAME}
+    DOCKER_IMAGE: gcr.io/soon-fm-production/eventrelay
+    DOCKER_TAG: ${CIRCLE_SHA1}
+    GCLOUD_PROJECT_NAME: soon-fm-production
+    GCLOUD_COMPUTE_ZONE: europe-west1-c
+
+dependencies:
+  pre:
+    - echo $GCLOUD_SERVICE_AUTH | base64 --decode -i > ${HOME}/account-auth.json
+    - sudo /opt/google-cloud-sdk/bin/gcloud --quiet components update
+    - sudo /opt/google-cloud-sdk/bin/gcloud --quiet components update kubectl
+    - sudo /opt/google-cloud-sdk/bin/gcloud auth activate-service-account --key-file ${HOME}/account-auth.json
+    - sudo /opt/google-cloud-sdk/bin/gcloud config set project ${GCLOUD_PROJECT_NAME}
+    - sudo /opt/google-cloud-sdk/bin/gcloud config set compute/zone ${GCLOUD_COMPUTE_ZONE}
+  override:
+    - mkdir -p ${GOPATH}/src
+    - cp -r ${HOME}/${CIRCLE_PROJECT_REPONAME} ${GOPATH}/src
+
+test:
+  override:
+    - cd ${PROJECT_PATH} && make test
+  post:
+    - cd ${PROJECT_PATH} && make image
+    - docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest
+
+deployment:
+  prod:
+    branch: master
+    commands:
+      - sudo /opt/google-cloud-sdk/bin/gcloud --quiet container clusters get-credentials production
+      - sudo /opt/google-cloud-sdk/bin/gcloud --quiet config set container/cluster production
+      - sudo /opt/google-cloud-sdk/bin/gcloud docker -- push ${DOCKER_IMAGE}:${DOCKER_TAG}
+      - sudo chown -R $USER /home/ubuntu/.config
+      - sudo chown -R $USER /home/ubuntu/.kube
+      - make k8s

@@ -1,0 +1,133 @@
+#
+# Kubernetes Deployment
+#
+
+# Event Relay Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eventrelay-config
+  labels:
+    app: eventrelay
+    tier: backend
+    type: config
+data:
+  eventrelay.conf: |
+    server {
+        listen 80;
+        location / {
+            proxy_pass          http://localhost:5000;
+            proxy_http_version  1.1;
+            proxy_set_header    Upgrade         $http_upgrade;
+            proxy_set_header    Connection      "upgrade";
+            proxy_set_header    Host            $host;
+            proxy_set_header    X-Real-IP       $remote_addr;
+            proxy_set_header    X-Forwarded-for $remote_addr;
+        }
+    }
+  config.toml: |
+    [log]
+    level = "debug"
+    format = "logstash"
+    [logstash]
+    type = "eventrelay"
+    [redis]
+    host = "redis:6379"
+    topics = [
+        "player:ready",
+        "player:offline",
+        "player:play",
+        "player:playing",
+        "player:stop",
+        "player:stopped",
+        "player:pause",
+        "player:paused",
+        "player:resume",
+        "player:resumed",
+        "player:error",
+        "volume:update",
+        "volume:updated",
+        "volume:mute",
+        "volume:muted",
+        "volume:unmute",
+        "volume:unmuted",
+    ]
+    [websocket]
+    bind = ":5000"
+# EOF
+---
+# Event Relay Servcice for Internal Routing
+apiVersion: v1
+kind: Service
+metadata:
+  name: eventrelay
+  labels:
+    app: eventrelay
+    tier: backend
+    type: service
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    protocol: TCP
+  selector:
+    app: eventrelay
+    tier: backend
+    type: deployment
+# EOF
+---
+# Event Relay Deployment
+# Runs the event relay application fronted by an Nginx
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: eventrelay
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: eventrelay
+        tier: backend
+        type: deployment
+    spec:
+      # Volumes
+      volumes:
+      - name: eventrelay-config-volume
+        configMap:
+          name: eventrelay-config
+      # Containers
+      containers:
+      # Nginx Container
+      - name: nginx
+        image: gcr.io/soon-fm-production/nginx:1.10.3
+        resources:
+          requests:
+            memory: "10Mi"
+        volumeMounts:
+        - name: eventrelay-config-volume
+          mountPath: /etc/nginx/conf.d
+        ports:
+        - containerPort: 80
+      # Go Application
+      - name: eventrelay
+        image: gcr.io/soon-fm-production/eventrelay:$TAG
+        resources:
+          requests:
+            memory: "10Mi"
+        volumeMounts:
+        - name: eventrelay-config-volume
+          mountPath: /etc/sfm/eventrelay
+        env:
+          - name: SFM_WEBSOCKET_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: eventrelay-websocket-credentials
+                key: username
+          - name: SFM_WEBSOCKET_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: eventrelay-websocket-credentials
+                key: password
+# EOF
+---

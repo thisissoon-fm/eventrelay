@@ -7,7 +7,7 @@ GOOS 			?=
 GOARCH 			?=
 TIME 			?= $(shell date +%s)
 VERSION 		?= $(shell git rev-parse HEAD)
-DOCKER_IMAGE	?= registry.soon.build/sfm/eventrelay
+DOCKER_IMAGE	?= gcr.io/soon-fm-production/eventrelay
 DOCKER_TAG		?= latest
 
 .PHONY: linux darwin
@@ -42,3 +42,10 @@ test:
 # Docker Image
 image: linux64
 	docker build --force-rm -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+
+#
+# Kubernetes
+#
+
+k8s:
+	cat k8s.yml | sed 's#'\$$TAG'#$(DOCKER_TAG)#g' | kubectl apply -f -
