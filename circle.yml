@@ -35,6 +35,7 @@ deployment:
       - sudo /opt/google-cloud-sdk/bin/gcloud --quiet container clusters get-credentials production
       - sudo /opt/google-cloud-sdk/bin/gcloud --quiet config set container/cluster production
       - sudo /opt/google-cloud-sdk/bin/gcloud docker -- push ${DOCKER_IMAGE}:${DOCKER_TAG}
+      - sudo /opt/google-cloud-sdk/bin/gcloud docker -- push ${DOCKER_IMAGE}:latest
       - sudo chown -R $USER /home/ubuntu/.config
       - sudo chown -R $USER /home/ubuntu/.kube
       - make k8s
