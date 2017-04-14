@@ -109,6 +109,14 @@ spec:
           mountPath: /etc/nginx/conf.d
         ports:
         - containerPort: 80
+        readinessProbe:
+          httpGet:
+            path: /__healthcheck__
+            port: 80
+          periodSeconds: 10
+          timeoutSeconds: 1
+          successThreshold: 3
+          failureThreshold: 10
       # Go Application
       - name: eventrelay
         image: gcr.io/soon-fm-production/eventrelay:$TAG
