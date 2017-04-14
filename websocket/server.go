@@ -10,11 +10,13 @@ package websocket
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"eventrelay/build"
 	"eventrelay/logger"
 
 	"github.com/gorilla/websocket"
@@ -39,6 +41,22 @@ type Server struct {
 	clientsC    chan *Client
 	// HTTP Server
 	srv *http.Server
+}
+
+// Healthcheck Handler /__healthcheck___
+func (srv *Server) healthcheckHandler(w http.ResponseWriter, r *http.Request) {
+	b, err := json.Marshal(&struct {
+		Version string `json:"version"`
+	}{
+		Version: build.Version(),
+	})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(b)
 }
 
 // HTTP handler for handling new incoming connections
@@ -92,6 +110,7 @@ func (s *Server) ListenAndServe() error {
 	// Setup HTTP Server
 	mux := http.NewServeMux()
 	mux.Handle("/", http.HandlerFunc(s.newConnHandler))
+	mux.Handle("/__healthcheck__", http.HandlerFunc(s.healthcheckHandler))
 	srv := &http.Server{
 		Addr:    s.Config.Bind(),
 		Handler: mux,
